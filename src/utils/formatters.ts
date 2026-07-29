@@ -1,0 +1,31 @@
+import dayjs from 'dayjs';
+
+/** Format a "HH:mm" string to 12-hour display like "8:00 AM" */
+export function formatTime(time24: string): string {
+  const [h, m] = time24.split(':').map(Number);
+  const date = dayjs().hour(h).minute(m);
+  return date.format('h:mm A');
+}
+
+/** Format a Date to "YYYY-MM-DD" */
+export function formatDate(date: Date): string {
+  return dayjs(date).format('YYYY-MM-DD');
+}
+
+/** Parse "HH:mm" into today's Date */
+export function parseTimeToToday(time24: string): Date {
+  const [h, m] = time24.split(':').map(Number);
+  return dayjs().hour(h).minute(m).second(0).millisecond(0).toDate();
+}
+
+/** Return a human-friendly label for how long ago something happened */
+export function timeAgo(isoString: string): string {
+  const now = dayjs();
+  const then = dayjs(isoString);
+  const mins = now.diff(then, 'minute');
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = now.diff(then, 'hour');
+  if (hours < 24) return `${hours}h ago`;
+  return then.format('MMM D, h:mm A');
+}
