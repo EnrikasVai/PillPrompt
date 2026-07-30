@@ -4,8 +4,10 @@ export interface Medication {
   name: string;             // e.g. "Metformin"
   dosage: string;           // e.g. "1 tablet – 500mg"
   time: string;             // "08:00" (24h format, HH:mm)
-  daysOfWeek: number[];     // 0 (Sun) – 6 (Sat). Empty array = every day.
+  daysOfWeek: number[];     // 0 (Mon) – 6 (Sun). Empty array = every day.
   enabled: boolean;         // Soft disable without deleting
+  pillCount: number;        // Starting pill count (e.g. 30). 0 = not tracked.
+  remainingPills: number;   // Current remaining count. Decrements on "taken".
 }
 
 /** App-wide caregiver settings */

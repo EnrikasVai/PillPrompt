@@ -73,7 +73,7 @@ export function CaregiverSetupScreen({ navigation }: Props) {
         <View style={styles.linkIcon}>
           <Ionicons name="document-text-outline" size={18} color={Colors.primary} />
         </View>
-        <Text style={styles.linkText}>Missed Dose Log</Text>
+        <Text style={styles.linkText}>Dose Log</Text>
         <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
       </TouchableOpacity>
     </View>

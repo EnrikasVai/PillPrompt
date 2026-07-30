@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 
 /**
  * A countdown timer that ticks every second until reaching zero.
- * Returns the remaining milliseconds and a formatted MM:SS string.
+ * Returns the remaining milliseconds and a formatted string.
+ * Shows HH:MM:SS when ≥1 hour remains, otherwise MM:SS.
  */
 export function useCountdown(targetDate: Date | null): { remainingMs: number; display: string; isExpired: boolean } {
   const [remainingMs, setRemainingMs] = useState(0);
@@ -24,9 +25,16 @@ export function useCountdown(targetDate: Date | null): { remainingMs: number; di
   }, [targetDate]);
 
   const totalSeconds = Math.ceil(remainingMs / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  const display = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+  let display: string;
+  if (hours > 0) {
+    display = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  } else {
+    display = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
 
   return { remainingMs, display, isExpired: remainingMs <= 0 };
 }

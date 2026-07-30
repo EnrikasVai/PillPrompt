@@ -1,5 +1,8 @@
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 import { Medication } from '../types';
+
+const LOW_STOCK_THRESHOLD = 5;
 
 /**
  * Cancel all scheduled notifications and re-schedule based on current medications.
@@ -39,6 +42,44 @@ export async function rescheduleAllNotifications(medications: Medication[]): Pro
         },
       });
     }
+  }
+}
+
+/**
+ * Check medications for low stock and send a notification if any are running low.
+ * Call this AFTER decrementing pill count (e.g. when a dose is taken).
+ * Cancels any previous low-stock notifications first to avoid duplicates.
+ */
+export async function checkLowStockNotifications(medications: Medication[]): Promise<void> {
+  const low = medications.filter(
+    (m) => m.enabled && m.pillCount > 0 && m.remainingPills > 0 && m.remainingPills <= LOW_STOCK_THRESHOLD,
+  );
+  if (low.length === 0) return;
+
+  const { status } = await Notifications.requestPermissionsAsync();
+  if (status !== 'granted') return;
+
+  // Cancel any previously scheduled low-stock notifications to prevent duplicates
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  for (const n of scheduled) {
+    if (n.content.data?.type === 'low-stock') {
+      await Notifications.cancelScheduledNotificationAsync(n.identifier);
+    }
+  }
+
+  for (const med of low) {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '⚠️ Refill needed',
+        body: `${med.name} — only ${med.remainingPills} ${med.remainingPills === 1 ? 'pill' : 'pills'} remaining!`,
+        data: { medicationId: med.id, type: 'low-stock' },
+        sound: 'default',
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds: 2,
+      },
+    });
   }
 }
 

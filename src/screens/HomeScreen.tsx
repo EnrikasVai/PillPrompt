@@ -25,6 +25,8 @@ interface TodayDose {
   time: string;
   status: 'upcoming' | 'taken' | 'missed' | 'in-grace';
   logEntry?: DoseLogEntry;
+  lowStock: boolean;
+  remainingPills: number;
 }
 
 export function HomeScreen({ navigation }: Props) {
@@ -86,6 +88,8 @@ export function HomeScreen({ navigation }: Props) {
           time: med.time,
           status,
           logEntry: log,
+          lowStock: med.pillCount > 0 && med.remainingPills > 0 && med.remainingPills <= 5,
+          remainingPills: med.remainingPills,
         };
       })
       .sort((a, b) => a.time.localeCompare(b.time));
@@ -106,6 +110,27 @@ export function HomeScreen({ navigation }: Props) {
     : false;
 
   // ── Render ──
+
+  const lowStockMeds = state.medications.filter(
+    (m) => m.enabled && m.pillCount > 0 && m.remainingPills > 0 && m.remainingPills <= 5,
+  );
+
+  const renderLowStockBanner = () => {
+    if (lowStockMeds.length === 0) return null;
+    return (
+      <View style={styles.lowStockCard}>
+        <Ionicons name="warning-outline" size={20} color={Colors.warning} />
+        <View style={styles.lowStockInfo}>
+          <Text style={styles.lowStockTitle}>Refill needed</Text>
+          {lowStockMeds.map((m) => (
+            <Text key={m.id} style={styles.lowStockText}>
+              {m.name} — {m.remainingPills} left
+            </Text>
+          ))}
+        </View>
+      </View>
+    );
+  };
 
   const renderTodayPlan = () => (
     <>
@@ -150,6 +175,12 @@ export function HomeScreen({ navigation }: Props) {
                       {dose.name}
                     </Text>
                     <Text style={styles.todayDosage}>{dose.dosage}</Text>
+                    {dose.lowStock && (
+                      <View style={styles.lowBadge}>
+                        <Ionicons name="warning-outline" size={12} color={Colors.warning} />
+                        <Text style={styles.lowBadgeText}>{dose.remainingPills} left</Text>
+                      </View>
+                    )}
                   </View>
                 </View>
                 <View style={styles.todayStatus}>
@@ -276,6 +307,9 @@ export function HomeScreen({ navigation }: Props) {
           showsVerticalScrollIndicator={false}
         >
           {renderContent()}
+
+          {/* Running low banner */}
+          {renderLowStockBanner()}
 
           {/* Always-visible call caregiver button */}
           {state.settings.caregiverPhone ? (
@@ -536,5 +570,43 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: Colors.textOnPrimary,
+  },
+
+  // ── Low stock ──
+  lowStockCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: Colors.warning + '18',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.warning,
+    padding: Spacing.md,
+    marginTop: Spacing.md,
+    gap: Spacing.sm,
+  },
+  lowStockInfo: {
+    flex: 1,
+  },
+  lowStockTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  lowStockText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  lowBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 4,
+  },
+  lowBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.warning,
   },
 });

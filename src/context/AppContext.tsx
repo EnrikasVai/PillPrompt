@@ -3,7 +3,7 @@ import { Medication, AppSettings, DoseLogEntry } from '../types';
 import { DEFAULT_SETTINGS } from '../constants';
 import { generateUUID } from '../utils/uuid';
 import { loadAllData, saveMedications, saveSettings, saveDoseLog } from '../services/storage';
-import { rescheduleAllNotifications } from '../services/notifications';
+import { rescheduleAllNotifications, checkLowStockNotifications } from '../services/notifications';
 
 // ─── State ────────────────────────────────────────────────
 
@@ -30,14 +30,20 @@ type AppAction =
   | { type: 'DELETE_MEDICATION'; id: string }
   | { type: 'UPDATE_SETTINGS'; settings: Partial<AppSettings> }
   | { type: 'LOG_DOSE'; entry: DoseLogEntry }
-  | { type: 'CLEAR_DOSE_LOG' };
+  | { type: 'CLEAR_DOSE_LOG' }
+  | { type: 'DECREMENT_PILL_COUNT'; medicationId: string };
 
 function reducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'HYDRATE':
       return {
         ...state,
-        medications: action.medications,
+        medications: action.medications.map((m) => ({
+          ...m,
+          // Backwards compatibility: old data won't have pillCount/remainingPills
+          pillCount: m.pillCount ?? 0,
+          remainingPills: m.remainingPills ?? 0,
+        })),
         settings: action.settings ?? DEFAULT_SETTINGS,
         doseLog: action.doseLog,
         isHydrated: true,
@@ -69,6 +75,16 @@ function reducer(state: AppState, action: AppAction): AppState {
     case 'CLEAR_DOSE_LOG':
       return { ...state, doseLog: [] };
 
+    case 'DECREMENT_PILL_COUNT':
+      return {
+        ...state,
+        medications: state.medications.map((m) =>
+          m.id === action.medicationId && m.remainingPills > 0
+            ? { ...m, remainingPills: m.remainingPills - 1 }
+            : m,
+        ),
+      };
+
     default:
       return state;
   }
@@ -85,6 +101,7 @@ interface AppContextValue {
   logDose: (medicationId: string, scheduledDate: string, scheduledTime: string, status: DoseLogEntry['status']) => void;
   updateSettings: (settings: Partial<AppSettings>) => void;
   clearDoseLog: () => void;
+  decrementPillCount: (medicationId: string) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -111,6 +128,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     rescheduleAllNotifications(state.medications);
   }, [state.medications]);
+
+  // Check for low stock when remaining pills change (after a dose is taken)
+  const prevRemainingRef = useRef<Record<string, number>>({});
+  useEffect(() => {
+    if (!state.isHydrated) return;
+    // Skip notification on first hydration — don't re-notify for already-low stock
+    const isFirstRun = Object.keys(prevRemainingRef.current).length === 0;
+
+    if (!isFirstRun) {
+      for (const med of state.medications) {
+        const prev = prevRemainingRef.current[med.id];
+        // Only notify when count JUST dropped from >5 to ≤5
+        if (
+          prev !== undefined &&
+          prev > 5 &&
+          med.pillCount > 0 &&
+          med.remainingPills > 0 &&
+          med.remainingPills <= 5
+        ) {
+          checkLowStockNotifications(state.medications);
+          break;
+        }
+      }
+    }
+
+    // Always store current values for next comparison
+    prevRemainingRef.current = Object.fromEntries(
+      state.medications.map((m) => [m.id, m.remainingPills]),
+    );
+  }, [state.medications, state.isHydrated]);
 
   // Persist to AsyncStorage on change (debounced)
   useEffect(() => {
@@ -149,6 +196,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         timestamp: new Date().toISOString(),
       };
       dispatch({ type: 'LOG_DOSE', entry });
+      if (status === 'taken') {
+        dispatch({ type: 'DECREMENT_PILL_COUNT', medicationId });
+      }
     },
     [],
   );
@@ -159,6 +209,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const clearDoseLog = useCallback(() => {
     dispatch({ type: 'CLEAR_DOSE_LOG' });
+  }, []);
+
+  const decrementPillCount = useCallback((medicationId: string) => {
+    dispatch({ type: 'DECREMENT_PILL_COUNT', medicationId });
   }, []);
 
   return (
@@ -172,6 +226,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         logDose,
         updateSettings,
         clearDoseLog,
+        decrementPillCount,
       }}
     >
       {children}

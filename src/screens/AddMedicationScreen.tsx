@@ -15,6 +15,7 @@ import { useApp } from '../context/AppContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../theme';
 import { DayOfWeekChips } from '../components/DayOfWeekChips';
+import { TimeWheelPicker } from '../components/TimeWheelPicker';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddMedication'>;
 
@@ -29,6 +30,7 @@ export function AddMedicationScreen({ navigation, route }: Props) {
   const [timeMinutes, setTimeMinutes] = useState('00');
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
   const [enabled, setEnabled] = useState(true);
+  const [pillCount, setPillCount] = useState('');
 
   useEffect(() => {
     if (isEditing) {
@@ -41,6 +43,7 @@ export function AddMedicationScreen({ navigation, route }: Props) {
         setTimeMinutes(m);
         setDaysOfWeek(med.daysOfWeek);
         setEnabled(med.enabled);
+        setPillCount(med.pillCount > 0 ? String(med.pillCount) : '');
       }
     }
   }, [editId, isEditing, state.medications]);
@@ -66,6 +69,9 @@ export function AddMedicationScreen({ navigation, route }: Props) {
   const handleSave = () => {
     if (!validate()) return;
 
+    const count = parseInt(pillCount, 10);
+    const initialCount = isNaN(count) || count < 1 ? 0 : count;
+
     const med: Medication = {
       id: editId || '',
       name: name.trim(),
@@ -73,6 +79,11 @@ export function AddMedicationScreen({ navigation, route }: Props) {
       time: `${timeHours.padStart(2, '0')}:${timeMinutes.padStart(2, '0')}`,
       daysOfWeek,
       enabled,
+      pillCount: initialCount,
+      // Reset remaining to initial count when editing
+      remainingPills: isEditing
+        ? initialCount
+        : initialCount,
     };
 
     if (isEditing) {
@@ -118,28 +129,30 @@ export function AddMedicationScreen({ navigation, route }: Props) {
         placeholderTextColor={Colors.textTertiary}
       />
 
-      <Text style={styles.label}>Time (24h)</Text>
-      <View style={styles.timeRow}>
-        <TextInput
-          style={[styles.input, styles.timeInput]}
-          value={timeHours}
-          onChangeText={setTimeHours}
-          keyboardType="number-pad"
-          maxLength={2}
-          placeholder="08"
-          placeholderTextColor={Colors.textTertiary}
-        />
-        <Text style={styles.timeSep}>:</Text>
-        <TextInput
-          style={[styles.input, styles.timeInput]}
-          value={timeMinutes}
-          onChangeText={setTimeMinutes}
-          keyboardType="number-pad"
-          maxLength={2}
-          placeholder="00"
-          placeholderTextColor={Colors.textTertiary}
-        />
-      </View>
+      <Text style={styles.label}>Time</Text>
+      <TimeWheelPicker
+        hours={timeHours}
+        minutes={timeMinutes}
+        onHoursChange={setTimeHours}
+        onMinutesChange={setTimeMinutes}
+      />
+
+      <Text style={styles.label}>Pill count (for refill tracking)</Text>
+      <TextInput
+        style={styles.input}
+        value={pillCount}
+        onChangeText={setPillCount}
+        keyboardType="number-pad"
+        maxLength={5}
+        placeholder="e.g. 30 — leave empty to skip"
+        placeholderTextColor={Colors.textTertiary}
+      />
+      {pillCount.trim() !== '' && (
+        <Text style={styles.hint}>
+          Remaining pills will decrease each time you tap "I TOOK IT".
+          A notification will remind you when {5} or fewer are left.
+        </Text>
+      )}
 
       <DayOfWeekChips selected={daysOfWeek} onChange={setDaysOfWeek} />
 
@@ -187,20 +200,6 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     backgroundColor: Colors.surface,
   },
-  timeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  timeInput: {
-    width: 70,
-    textAlign: 'center',
-  },
-  timeSep: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
   switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -211,6 +210,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: Colors.textPrimary,
+  },
+  hint: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   saveButton: {
     backgroundColor: Colors.primary,

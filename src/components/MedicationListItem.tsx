@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../theme';
 import { formatTime } from '../utils/formatters';
 
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 interface Props {
   medication: Medication;
@@ -14,10 +14,11 @@ interface Props {
 }
 
 export function MedicationListItem({ medication, onPress, onDelete }: Props) {
+  const sortedDays = [...medication.daysOfWeek].sort((a, b) => a - b);
   const daysLabel =
-    medication.daysOfWeek.length === 0
+    sortedDays.length === 0
       ? 'Every day'
-      : medication.daysOfWeek.map((d) => DAY_LABELS[d]).join(', ');
+      : sortedDays.map((d) => DAY_LABELS[d]).join(', ');
 
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
