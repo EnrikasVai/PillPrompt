@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Share } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList, DoseLogEntry } from '../types';
 import { useApp } from '../context/AppContext';
@@ -15,7 +15,7 @@ interface GroupedLog {
 }
 
 export function DoseLogScreen({ navigation }: Props) {
-  const { state, clearDoseLog } = useApp();
+  const { state } = useApp();
 
   const grouped = useMemo(() => {
     const map = new Map<string, (DoseLogEntry & { medicationName: string })[]>();
@@ -34,11 +34,27 @@ export function DoseLogScreen({ navigation }: Props) {
     return Array.from(map.entries()).map(([date, entries]) => ({ date, entries }));
   }, [state.doseLog, state.medications]);
 
-  const handleClear = () => {
-    Alert.alert('Clear All Logs', 'This cannot be undone. Continue?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Clear', style: 'destructive', onPress: clearDoseLog },
-    ]);
+  const handleExport = async () => {
+    if (state.doseLog.length === 0) return;
+
+    const lines: string[] = ['PillPrompt — Dose Log', '=====================', ''];
+
+    for (const group of grouped) {
+      lines.push(`--- ${group.date} ---`);
+      for (const entry of group.entries) {
+        const statusIcon = entry.status === 'taken' ? '✅' : entry.status === 'missed' ? '❌' : '⏰';
+        lines.push(`  ${statusIcon} ${entry.medicationName} — ${formatTime(entry.scheduledTime)} (${entry.status})`);
+      }
+      lines.push('');
+    }
+
+    const text = lines.join('\n');
+
+    try {
+      await Share.share({ message: text, title: 'PillPrompt Dose Log' });
+    } catch {
+      // User cancelled or share failed
+    }
   };
 
   const statusIcon = (status: string) => {
@@ -84,8 +100,9 @@ export function DoseLogScreen({ navigation }: Props) {
           </View>
         )}
       />
-      <TouchableOpacity style={styles.clearButton} onPress={handleClear} activeOpacity={0.7}>
-        <Text style={styles.clearText}>Clear All Logs</Text>
+      <TouchableOpacity style={styles.exportButton} onPress={handleExport} activeOpacity={0.7}>
+        <Ionicons name="share-outline" size={20} color={Colors.textOnPrimary} />
+        <Text style={styles.exportText}> Export Log</Text>
       </TouchableOpacity>
     </View>
   );
@@ -137,14 +154,17 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 2,
   },
-  clearButton: {
-    backgroundColor: Colors.danger,
+  exportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
     borderRadius: BorderRadius.md,
     paddingVertical: 14,
-    alignItems: 'center',
     marginTop: Spacing.md,
+    gap: Spacing.sm,
   },
-  clearText: {
+  exportText: {
     fontSize: 16,
     fontWeight: '600',
     color: Colors.textOnPrimary,

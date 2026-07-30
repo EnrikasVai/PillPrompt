@@ -33,20 +33,42 @@ export function HomeScreen({ navigation }: Props) {
   const { state, logDose } = useApp();
   const upcoming = useUpcomingDose(state.medications, state.settings);
 
-  const [takenMedId, setTakenMedId] = useState<string | null>(null);
+  const [takenMedIds, setTakenMedIds] = useState<Set<string>>(new Set());
 
   React.useEffect(() => {
-    setTakenMedId(null);
-  }, [upcoming?.medication.id, upcoming?.scheduledDateTime.getTime()]);
+    setTakenMedIds(new Set());
+  }, [upcoming?.scheduledDateTime.getTime()]);
 
   useMissedDoseCheck(state.medications, state.doseLog, state.settings, logDose);
 
+  // Find all medications that share the same time as the upcoming dose
+  const sameTimeMeds = useMemo(() => {
+    if (!upcoming) return [];
+    return state.medications.filter(
+      (m) =>
+        m.enabled &&
+        m.time === upcoming.medication.time &&
+        (m.daysOfWeek.length === 0 || m.daysOfWeek.includes(new Date().getDay())) &&
+        !state.doseLog.some(
+          (log) =>
+            log.medicationId === m.id &&
+            log.scheduledDate === new Date().toISOString().slice(0, 10) &&
+            log.scheduledTime === m.time &&
+            log.status === 'taken',
+        ),
+    );
+  }, [upcoming, state.medications, state.doseLog]);
+
   const handleTaken = useCallback(() => {
-    if (!upcoming) return;
+    if (!upcoming || sameTimeMeds.length === 0) return;
     const today = new Date().toISOString().slice(0, 10);
-    logDose(upcoming.medication.id, today, upcoming.medication.time, 'taken');
-    setTakenMedId(upcoming.medication.id);
-  }, [upcoming, logDose]);
+    const ids: string[] = [];
+    for (const med of sameTimeMeds) {
+      logDose(med.id, today, med.time, 'taken');
+      ids.push(med.id);
+    }
+    setTakenMedIds(new Set(ids));
+  }, [upcoming, sameTimeMeds, logDose]);
 
   const hasMedications = state.medications.some((m) => m.enabled);
 
@@ -100,12 +122,14 @@ export function HomeScreen({ navigation }: Props) {
   const progressPercent = totalToday > 0 ? (takenCount / totalToday) * 100 : 0;
 
   const currentMissed = upcoming
-    ? state.doseLog.some(
-        (log) =>
-          log.medicationId === upcoming.medication.id &&
-          log.scheduledDate === new Date().toISOString().slice(0, 10) &&
-          log.scheduledTime === upcoming.medication.time &&
-          log.status === 'missed',
+    ? sameTimeMeds.every((med) =>
+        state.doseLog.some(
+          (log) =>
+            log.medicationId === med.id &&
+            log.scheduledDate === new Date().toISOString().slice(0, 10) &&
+            log.scheduledTime === med.time &&
+            log.status === 'missed',
+        ),
       )
     : false;
 
@@ -161,7 +185,7 @@ export function HomeScreen({ navigation }: Props) {
       {totalToday > 0 && (
         <View style={styles.todayList}>
           {todayDoses.map((dose) => {
-            const isActive = upcoming && dose.medicationId === upcoming.medication.id;
+            const isActive = upcoming && dose.time === upcoming.medication.time;
 
             return (
               <View
@@ -199,10 +223,11 @@ export function HomeScreen({ navigation }: Props) {
 
   const renderActiveDose = () => {
     if (!upcoming) return null;
-    if (takenMedId === upcoming.medication.id) return null; // handled below
+    if (takenMedIds.size > 0 && sameTimeMeds.every((m) => takenMedIds.has(m.id))) return null;
     if (currentMissed) return null;
 
     const isBeforeSchedule = upcoming.status === 'upcoming' && new Date() < upcoming.scheduledDateTime;
+    const isMulti = sameTimeMeds.length > 1;
 
     return (
       <View style={styles.activeSection}>
@@ -210,8 +235,15 @@ export function HomeScreen({ navigation }: Props) {
           <Text style={styles.activeLabel}>
             <Ionicons name="alarm-outline" size={16} color={Colors.primary} /> TIME TO TAKE
           </Text>
-          <Text style={styles.activeName}>{upcoming.medication.name}</Text>
-          <Text style={styles.activeDosage}>{upcoming.medication.dosage}</Text>
+
+          {sameTimeMeds.map((med, idx) => (
+            <View key={med.id}>
+              <Text style={styles.activeName}>{med.name}</Text>
+              <Text style={styles.activeDosage}>{med.dosage}</Text>
+              {idx < sameTimeMeds.length - 1 && <View style={styles.activeDivider} />}
+            </View>
+          ))}
+
           <CountdownTimer targetDate={upcoming.graceEndDateTime} />
           <TakenButton onPress={handleTaken} disabled={isBeforeSchedule} />
           {isBeforeSchedule && (
@@ -219,6 +251,9 @@ export function HomeScreen({ navigation }: Props) {
               <Ionicons name="hourglass-outline" size={16} color={Colors.warning} />
               <Text style={styles.noticeText}> Not yet — wait for your scheduled time</Text>
             </View>
+          )}
+          {isMulti && !isBeforeSchedule && (
+            <Text style={styles.multiHint}>All medications at this time will be marked as taken</Text>
           )}
         </View>
       </View>
@@ -247,14 +282,17 @@ export function HomeScreen({ navigation }: Props) {
       );
     }
 
-    // Taken all — show the celebration
-    if (takenMedId && upcoming && takenMedId === upcoming.medication.id) {
-      return (
-        <>
-          {renderTodayPlan()}
-          <TakenState seniorName={state.settings.seniorName} />
-        </>
-      );
+    // Taken all at this time slot
+    if (takenMedIds.size > 0 && upcoming) {
+      const allSameTimeTaken = sameTimeMeds.every((m) => takenMedIds.has(m.id));
+      if (allSameTimeTaken) {
+        return (
+          <>
+            {renderTodayPlan()}
+            <TakenState seniorName={state.settings.seniorName} />
+          </>
+        );
+      }
     }
 
     // Missed
@@ -537,6 +575,18 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: Spacing.sm,
+  },
+  activeDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginVertical: Spacing.sm,
+  },
+  multiHint: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginTop: Spacing.xs,
   },
   noticeBanner: {
     flexDirection: 'row',

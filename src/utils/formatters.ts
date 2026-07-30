@@ -1,10 +1,8 @@
 import dayjs from 'dayjs';
 
-/** Format a "HH:mm" string to 12-hour display like "8:00 AM" */
+/** Format a "HH:mm" string to 24-hour display like "08:00" */
 export function formatTime(time24: string): string {
-  const [h, m] = time24.split(':').map(Number);
-  const date = dayjs().hour(h).minute(m);
-  return date.format('h:mm A');
+  return time24;
 }
 
 /** Format a Date to "YYYY-MM-DD" */
@@ -27,5 +25,5 @@ export function timeAgo(isoString: string): string {
   if (mins < 60) return `${mins}m ago`;
   const hours = now.diff(then, 'hour');
   if (hours < 24) return `${hours}h ago`;
-  return then.format('MMM D, h:mm A');
+  return then.format('MMM D, HH:mm');
 }
