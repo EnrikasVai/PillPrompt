@@ -1,14 +1,17 @@
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
-import { Medication } from '../types';
+import { Medication, AppSettings } from '../types';
 
 const LOW_STOCK_THRESHOLD = 5;
 
 /**
  * Cancel all scheduled notifications and re-schedule based on current medications.
  * Call this on app launch and whenever medications/settings change.
+ * Notifications fire `settings.reminderMinutesBefore` minutes before each dose time.
  */
-export async function rescheduleAllNotifications(medications: Medication[]): Promise<void> {
+export async function rescheduleAllNotifications(
+  medications: Medication[],
+  settings: AppSettings,
+): Promise<void> {
   // Cancel existing
   await Notifications.cancelAllScheduledNotificationsAsync();
 
@@ -16,11 +19,19 @@ export async function rescheduleAllNotifications(medications: Medication[]): Pro
   const { status } = await Notifications.requestPermissionsAsync();
   if (status !== 'granted') return;
 
+  const before = Math.min(Math.max(settings.reminderMinutesBefore ?? 0, 0), 60);
+
   // Schedule one per medication per active day
   for (const med of medications) {
     if (!med.enabled) continue;
 
     const [hours, minutes] = med.time.split(':').map(Number);
+    // Trigger time = dose time minus reminder lead
+    const totalMin = hours * 60 + minutes - before;
+    const adjusted = ((totalMin % 1440) + 1440) % 1440; // wrap around midnight
+    const triggerHour = Math.floor(adjusted / 60);
+    const triggerMinute = adjusted % 60;
+    const dayShift = totalMin < 0 ? -1 : 0; // fires previous day if lead crosses midnight
 
     const days = med.daysOfWeek.length === 0
       ? [0, 1, 2, 3, 4, 5, 6]  // Every day
@@ -29,16 +40,17 @@ export async function rescheduleAllNotifications(medications: Medication[]): Pro
     for (const day of days) {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: `Time for ${med.name}`,
+          title: before > 0 ? `Upcoming: ${med.name} in ${before} min` : `Time for ${med.name}`,
           body: `${med.dosage} — tap to open PillPrompt`,
           data: { medicationId: med.id },
           sound: 'default',
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-          weekday: day + 1,          // expo uses 1–7 where 1=Sunday
-          hour: hours,
-          minute: minutes,
+          // expo uses 1–7 where 1=Sunday; wrap to (0..6) then add 1
+          weekday: (((day + dayShift) % 7) + 7) % 7 + 1,
+          hour: triggerHour,
+          minute: triggerMinute,
         },
       });
     }

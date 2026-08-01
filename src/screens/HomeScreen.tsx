@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -15,6 +15,7 @@ import { TakenButton } from '../components/TakenButton';
 import { TakenState } from '../components/TakenState';
 import { MissedState } from '../components/MissedState';
 import { NoDosesState } from '../components/NoDosesState';
+import { SkippedState } from '../components/SkippedState';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
@@ -23,7 +24,7 @@ interface TodayDose {
   name: string;
   dosage: string;
   time: string;
-  status: 'upcoming' | 'taken' | 'missed' | 'in-grace';
+  status: 'upcoming' | 'taken' | 'missed' | 'in-grace' | 'skipped';
   logEntry?: DoseLogEntry;
   lowStock: boolean;
   remainingPills: number;
@@ -34,12 +35,17 @@ export function HomeScreen({ navigation }: Props) {
   const upcoming = useUpcomingDose(state.medications, state.settings);
 
   const [takenMedIds, setTakenMedIds] = useState<Set<string>>(new Set());
+  const [skippedMedIds, setSkippedMedIds] = useState<Set<string>>(new Set());
 
   React.useEffect(() => {
     setTakenMedIds(new Set());
+    setSkippedMedIds(new Set());
   }, [upcoming?.scheduledDateTime.getTime()]);
 
   useMissedDoseCheck(state.medications, state.doseLog, state.settings, logDose);
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayDay = new Date().getDay();
 
   // Find all medications that share the same time as the upcoming dose
   const sameTimeMeds = useMemo(() => {
@@ -52,23 +58,44 @@ export function HomeScreen({ navigation }: Props) {
         !state.doseLog.some(
           (log) =>
             log.medicationId === m.id &&
-            log.scheduledDate === new Date().toISOString().slice(0, 10) &&
+            log.scheduledDate === todayStr &&
             log.scheduledTime === m.time &&
-            log.status === 'taken',
+            (log.status === 'taken' || log.status === 'missed' || log.status === 'skipped'),
         ),
     );
-  }, [upcoming, state.medications, state.doseLog]);
+  }, [upcoming, state.medications, state.doseLog, todayStr]);
 
   const handleTaken = useCallback(() => {
     if (!upcoming || sameTimeMeds.length === 0) return;
-    const today = new Date().toISOString().slice(0, 10);
     const ids: string[] = [];
     for (const med of sameTimeMeds) {
-      logDose(med.id, today, med.time, 'taken');
+      logDose(med.id, todayStr, med.time, 'taken');
       ids.push(med.id);
     }
     setTakenMedIds(new Set(ids));
-  }, [upcoming, sameTimeMeds, logDose]);
+  }, [upcoming, sameTimeMeds, logDose, todayStr]);
+
+  const handleSkip = useCallback(() => {
+    if (!upcoming || sameTimeMeds.length === 0) return;
+    const label = sameTimeMeds.length > 1
+      ? `Skip ${sameTimeMeds.length} medications for today?`
+      : `Skip ${sameTimeMeds[0].name} for today?`;
+    Alert.alert('Skip Dose', label, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Skip',
+        style: 'destructive',
+        onPress: () => {
+          const ids: string[] = [];
+          for (const med of sameTimeMeds) {
+            logDose(med.id, todayStr, med.time, 'skipped');
+            ids.push(med.id);
+          }
+          setSkippedMedIds(new Set(ids));
+        },
+      },
+    ]);
+  }, [upcoming, sameTimeMeds, logDose, todayStr]);
 
   const hasMedications = state.medications.some((m) => m.enabled);
 
@@ -121,12 +148,12 @@ export function HomeScreen({ navigation }: Props) {
   const takenCount = todayDoses.filter((d) => d.status === 'taken').length;
   const progressPercent = totalToday > 0 ? (takenCount / totalToday) * 100 : 0;
 
-  const currentMissed = upcoming
+  const currentMissed = upcoming && sameTimeMeds.length > 0
     ? sameTimeMeds.every((med) =>
         state.doseLog.some(
           (log) =>
             log.medicationId === med.id &&
-            log.scheduledDate === new Date().toISOString().slice(0, 10) &&
+            log.scheduledDate === todayStr &&
             log.scheduledTime === med.time &&
             log.status === 'missed',
         ),
@@ -210,6 +237,7 @@ export function HomeScreen({ navigation }: Props) {
                 <View style={styles.todayStatus}>
                   {dose.status === 'taken' && <Ionicons name="checkmark-circle" size={24} color={Colors.success} />}
                   {dose.status === 'missed' && <Ionicons name="close-circle" size={24} color={Colors.danger} />}
+                  {dose.status === 'skipped' && <Ionicons name="close" size={24} color={Colors.textTertiary} />}
                   {dose.status === 'in-grace' && <Ionicons name="hourglass-outline" size={24} color={Colors.warning} />}
                   {dose.status === 'upcoming' && <Ionicons name="time-outline" size={24} color={Colors.textTertiary} />}
                 </View>
@@ -224,6 +252,7 @@ export function HomeScreen({ navigation }: Props) {
   const renderActiveDose = () => {
     if (!upcoming) return null;
     if (takenMedIds.size > 0 && sameTimeMeds.every((m) => takenMedIds.has(m.id))) return null;
+    if (skippedMedIds.size > 0 && sameTimeMeds.every((m) => skippedMedIds.has(m.id))) return null;
     if (currentMissed) return null;
 
     const isBeforeSchedule = upcoming.status === 'upcoming' && new Date() < upcoming.scheduledDateTime;
@@ -255,6 +284,11 @@ export function HomeScreen({ navigation }: Props) {
           {isMulti && !isBeforeSchedule && (
             <Text style={styles.multiHint}>All medications at this time will be marked as taken</Text>
           )}
+
+          <TouchableOpacity style={styles.skipButton} onPress={handleSkip} activeOpacity={0.7}>
+            <Ionicons name="close-circle-outline" size={20} color={Colors.textSecondary} />
+            <Text style={styles.skipText}> Skip Dose</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -290,6 +324,19 @@ export function HomeScreen({ navigation }: Props) {
           <>
             {renderTodayPlan()}
             <TakenState seniorName={state.settings.seniorName} />
+          </>
+        );
+      }
+    }
+
+    // Skipped all at this time slot
+    if (skippedMedIds.size > 0 && upcoming) {
+      const allSameTimeSkipped = sameTimeMeds.every((m) => skippedMedIds.has(m.id));
+      if (allSameTimeSkipped) {
+        return (
+          <>
+            {renderTodayPlan()}
+            <SkippedState seniorName={state.settings.seniorName} />
           </>
         );
       }
@@ -587,6 +634,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
     marginTop: Spacing.xs,
+  },
+  skipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'stretch',
+    backgroundColor: Colors.surfaceSecondary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 14,
+    marginTop: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  skipText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.textSecondary,
   },
   noticeBanner: {
     flexDirection: 'row',

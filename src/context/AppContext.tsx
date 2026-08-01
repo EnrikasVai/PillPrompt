@@ -30,7 +30,6 @@ type AppAction =
   | { type: 'DELETE_MEDICATION'; id: string }
   | { type: 'UPDATE_SETTINGS'; settings: Partial<AppSettings> }
   | { type: 'LOG_DOSE'; entry: DoseLogEntry }
-  | { type: 'CLEAR_DOSE_LOG' }
   | { type: 'DECREMENT_PILL_COUNT'; medicationId: string };
 
 function reducer(state: AppState, action: AppAction): AppState {
@@ -44,7 +43,7 @@ function reducer(state: AppState, action: AppAction): AppState {
           pillCount: m.pillCount ?? 0,
           remainingPills: m.remainingPills ?? 0,
         })),
-        settings: action.settings ?? DEFAULT_SETTINGS,
+        settings: { ...DEFAULT_SETTINGS, ...action.settings },
         doseLog: action.doseLog,
         isHydrated: true,
       };
@@ -72,9 +71,6 @@ function reducer(state: AppState, action: AppAction): AppState {
     case 'LOG_DOSE':
       return { ...state, doseLog: [...state.doseLog, action.entry] };
 
-    case 'CLEAR_DOSE_LOG':
-      return { ...state, doseLog: [] };
-
     case 'DECREMENT_PILL_COUNT':
       return {
         ...state,
@@ -100,7 +96,6 @@ interface AppContextValue {
   deleteMedication: (id: string) => void;
   logDose: (medicationId: string, scheduledDate: string, scheduledTime: string, status: DoseLogEntry['status']) => void;
   updateSettings: (settings: Partial<AppSettings>) => void;
-  clearDoseLog: () => void;
   decrementPillCount: (medicationId: string) => void;
 }
 
@@ -120,14 +115,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  // Re-schedule notifications whenever medications change (after initial hydration)
+  // Re-schedule notifications whenever medications or settings change (after initial hydration)
   useEffect(() => {
     if (isFirstHydration.current) {
       isFirstHydration.current = false;
       return;
     }
-    rescheduleAllNotifications(state.medications);
-  }, [state.medications]);
+    rescheduleAllNotifications(state.medications, state.settings);
+  }, [state.medications, state.settings]);
 
   // Check for low stock when remaining pills change (after a dose is taken)
   const prevRemainingRef = useRef<Record<string, number>>({});
@@ -207,10 +202,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'UPDATE_SETTINGS', settings });
   }, []);
 
-  const clearDoseLog = useCallback(() => {
-    dispatch({ type: 'CLEAR_DOSE_LOG' });
-  }, []);
-
   const decrementPillCount = useCallback((medicationId: string) => {
     dispatch({ type: 'DECREMENT_PILL_COUNT', medicationId });
   }, []);
@@ -225,7 +216,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         deleteMedication,
         logDose,
         updateSettings,
-        clearDoseLog,
         decrementPillCount,
       }}
     >

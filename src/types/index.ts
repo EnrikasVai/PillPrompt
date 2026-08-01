@@ -12,10 +12,11 @@ export interface Medication {
 
 /** App-wide caregiver settings */
 export interface AppSettings {
-  caregiverPhone: string;       // e.g. "+15551234567"
-  gracePeriodMinutes: number;   // Default 15
-  seniorName: string;           // e.g. "Mom"
-  pinCode: string;              // 4-digit PIN (plaintext for MVP)
+  caregiverPhone: string;           // e.g. "+15551234567"
+  gracePeriodMinutes: number;       // Default 15
+  seniorName: string;               // e.g. "Mom"
+  pinCode: string;                  // 4-digit PIN (plaintext for MVP)
+  reminderMinutesBefore: number;    // Minutes before dose time to send reminder (0 = at dose time)
 }
 
 /** A single logged dose event */
@@ -24,7 +25,7 @@ export interface DoseLogEntry {
   medicationId: string;     // FK to Medication.id
   scheduledDate: string;    // "2026-07-29" (YYYY-MM-DD)
   scheduledTime: string;    // "08:00" (HH:mm)
-  status: 'taken' | 'missed' | 'snoozed';
+  status: 'taken' | 'missed' | 'snoozed' | 'skipped';
   timestamp: string;        // ISO 8601 — when the action occurred
 }
 

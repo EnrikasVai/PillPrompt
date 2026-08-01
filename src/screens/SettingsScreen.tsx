@@ -15,6 +15,7 @@ export function SettingsScreen({ navigation }: Props) {
   const [caregiverPhone, setCaregiverPhone] = useState(settings.caregiverPhone);
   const [gracePeriod, setGracePeriod] = useState(String(settings.gracePeriodMinutes));
   const [seniorName, setSeniorName] = useState(settings.seniorName);
+  const [reminderMinutes, setReminderMinutes] = useState(String(settings.reminderMinutesBefore));
 
   const handleSave = () => {
     const gp = parseInt(gracePeriod, 10);
@@ -22,10 +23,16 @@ export function SettingsScreen({ navigation }: Props) {
       Alert.alert('Error', 'Grace period must be between 1 and 60 minutes.');
       return;
     }
+    const rm = parseInt(reminderMinutes, 10);
+    if (isNaN(rm) || rm < 0 || rm > 60) {
+      Alert.alert('Error', 'Reminder time must be between 0 and 60 minutes before.');
+      return;
+    }
     updateSettings({
       caregiverPhone: caregiverPhone.trim(),
       gracePeriodMinutes: gp,
       seniorName: seniorName.trim(),
+      reminderMinutesBefore: rm,
     });
     Alert.alert('Saved', 'Settings updated.');
     navigation.goBack();
@@ -55,6 +62,20 @@ export function SettingsScreen({ navigation }: Props) {
         maxLength={2}
       />
       <Text style={styles.hint}>How long after the scheduled time before alerting (1–60)</Text>
+
+      <Text style={styles.label}>Remind Me Before (minutes)</Text>
+      <TextInput
+        style={styles.input}
+        value={reminderMinutes}
+        onChangeText={setReminderMinutes}
+        placeholder="0"
+        placeholderTextColor={Colors.textTertiary}
+        keyboardType="number-pad"
+        maxLength={2}
+      />
+      <Text style={styles.hint}>
+        How many minutes before the dose time to send the reminder (0–60). 0 = exactly at dose time.
+      </Text>
 
       <Text style={styles.label}>Senior Name</Text>
       <TextInput

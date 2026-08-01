@@ -42,7 +42,7 @@ export function DoseLogScreen({ navigation }: Props) {
     for (const group of grouped) {
       lines.push(`--- ${group.date} ---`);
       for (const entry of group.entries) {
-        const statusIcon = entry.status === 'taken' ? '✅' : entry.status === 'missed' ? '❌' : '⏰';
+        const statusIcon = entry.status === 'taken' ? '✅' : entry.status === 'missed' ? '❌' : entry.status === 'skipped' ? '➖' : '⏰';
         lines.push(`  ${statusIcon} ${entry.medicationName} — ${formatTime(entry.scheduledTime)} (${entry.status})`);
       }
       lines.push('');
@@ -65,6 +65,8 @@ export function DoseLogScreen({ navigation }: Props) {
         return <Ionicons name="close-circle" size={24} color={Colors.danger} />;
       case 'snoozed':
         return <Ionicons name="alarm-outline" size={24} color={Colors.warning} />;
+      case 'skipped':
+        return <Ionicons name="close" size={24} color={Colors.textTertiary} />;
       default:
         return <Ionicons name="help-circle-outline" size={24} color={Colors.textTertiary} />;
     }

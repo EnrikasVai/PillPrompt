@@ -5,6 +5,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   gracePeriodMinutes: 15,
   seniorName: '',
   pinCode: '1234',
+  reminderMinutesBefore: 0,
 };
 
 export const STORAGE_KEYS = {

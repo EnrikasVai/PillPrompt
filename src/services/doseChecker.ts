@@ -29,13 +29,13 @@ export function detectMissedDoses(
     // If grace period hasn't ended yet, skip
     if (dayjs(now).isBefore(graceEnd)) continue;
 
-    // Check if already logged as taken or missed for this dose
+    // Check if already logged as taken, missed, or skipped for this dose
     const alreadyLogged = doseLog.find(
       (log) =>
         log.medicationId === med.id &&
         log.scheduledDate === todayStr &&
         log.scheduledTime === med.time &&
-        (log.status === 'taken' || log.status === 'missed'),
+        (log.status === 'taken' || log.status === 'missed' || log.status === 'skipped'),
     );
     if (alreadyLogged) continue;
 
