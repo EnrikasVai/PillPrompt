@@ -9,7 +9,7 @@ import { useApp } from '../context/AppContext';
 import { useUpcomingDose } from '../hooks/useUpcomingDose';
 import { useMissedDoseCheck } from '../hooks/useMissedDoseCheck';
 import { Colors, Typography, Spacing, BorderRadius, Shadows, Layout } from '../theme';
-import { formatTime } from '../utils/formatters';
+import { formatTime, jsDayToAppDay } from '../utils/formatters';
 import { CountdownTimer } from '../components/CountdownTimer';
 import { TakenButton } from '../components/TakenButton';
 import { TakenState } from '../components/TakenState';
@@ -45,7 +45,7 @@ export function HomeScreen({ navigation }: Props) {
   useMissedDoseCheck(state.medications, state.doseLog, state.settings, logDose);
 
   const todayStr = new Date().toISOString().slice(0, 10);
-  const todayDay = new Date().getDay();
+  const todayAppDay = jsDayToAppDay(new Date().getDay());
 
   // Find all medications that share the same time as the upcoming dose
   const sameTimeMeds = useMemo(() => {
@@ -54,7 +54,7 @@ export function HomeScreen({ navigation }: Props) {
       (m) =>
         m.enabled &&
         m.time === upcoming.medication.time &&
-        (m.daysOfWeek.length === 0 || m.daysOfWeek.includes(new Date().getDay())) &&
+        (m.daysOfWeek.length === 0 || m.daysOfWeek.includes(todayAppDay)) &&
         !state.doseLog.some(
           (log) =>
             log.medicationId === m.id &&
@@ -63,7 +63,7 @@ export function HomeScreen({ navigation }: Props) {
             (log.status === 'taken' || log.status === 'missed' || log.status === 'skipped'),
         ),
     );
-  }, [upcoming, state.medications, state.doseLog, todayStr]);
+  }, [upcoming, state.medications, state.doseLog, todayStr, todayAppDay]);
 
   const handleTaken = useCallback(() => {
     if (!upcoming || sameTimeMeds.length === 0) return;
@@ -103,7 +103,7 @@ export function HomeScreen({ navigation }: Props) {
   const todayDoses = useMemo((): TodayDose[] => {
     const today = new Date();
     const todayStr = dayjs(today).format('YYYY-MM-DD');
-    const todayDay = today.getDay();
+    const todayDay = jsDayToAppDay(today.getDay());
 
     return state.medications
       .filter((m) => m.enabled && (m.daysOfWeek.length === 0 || m.daysOfWeek.includes(todayDay)))

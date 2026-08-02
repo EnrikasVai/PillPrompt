@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
+import dayjs from 'dayjs';
 import { Medication, AppSettings, DoseLogEntry } from '../types';
 import { DEFAULT_SETTINGS } from '../constants';
 import { generateUUID } from '../utils/uuid';
-import { loadAllData, saveMedications, saveSettings, saveDoseLog } from '../services/storage';
+import { loadAllData, saveMedications, saveSettings, saveDoseLog, loadLastCheckDate, saveLastCheckDate } from '../services/storage';
 import { rescheduleAllNotifications, checkLowStockNotifications } from '../services/notifications';
+import { computeBackfillMisses } from '../services/doseChecker';
 
 // ─── State ────────────────────────────────────────────────
 
@@ -114,6 +116,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'HYDRATE', ...data });
     })();
   }, []);
+
+  // Backfill missed doses for days the app was closed (run once after hydration)
+  const didBackfillRef = useRef(false);
+  useEffect(() => {
+    if (!state.isHydrated || didBackfillRef.current) return;
+    didBackfillRef.current = true;
+
+    (async () => {
+      const todayStr = dayjs().format('YYYY-MM-DD');
+      const lastCheck = await loadLastCheckDate();
+
+      // First time (new account or upgrade): set baseline to today, don't backfill anything
+      if (!lastCheck) {
+        await saveLastCheckDate(todayStr);
+        return;
+      }
+
+      const misses = computeBackfillMisses(state.medications, state.doseLog, lastCheck, todayStr);
+      for (const miss of misses) {
+        dispatch({
+          type: 'LOG_DOSE',
+          entry: {
+            id: generateUUID(),
+            medicationId: miss.medicationId,
+            scheduledDate: miss.scheduledDate,
+            scheduledTime: miss.scheduledTime,
+            status: 'missed',
+            timestamp: new Date().toISOString(),
+          },
+        });
+      }
+
+      await saveLastCheckDate(todayStr);
+    })();
+  }, [state.isHydrated, state.medications, state.doseLog]);
 
   // Re-schedule notifications whenever medications or settings change (after initial hydration)
   useEffect(() => {

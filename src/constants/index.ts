@@ -12,6 +12,7 @@ export const STORAGE_KEYS = {
   MEDICATIONS: '@pillprompt/medications',
   SETTINGS: '@pillprompt/settings',
   DOSE_LOG: '@pillprompt/doseLog',
+  LAST_CHECK_DATE: '@pillprompt/lastCheckDate',
 } as const;
 
 export const COLORS = {

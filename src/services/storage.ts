@@ -51,6 +51,24 @@ export async function loadDoseLog(): Promise<DoseLogEntry[]> {
   }
 }
 
+// ─── Last Check Date (for missed-dose backfill) ───────────
+
+export async function loadLastCheckDate(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(STORAGE_KEYS.LAST_CHECK_DATE);
+  } catch {
+    return null;
+  }
+}
+
+export async function saveLastCheckDate(date: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEYS.LAST_CHECK_DATE, date);
+  } catch {
+    // Silently fail
+  }
+}
+
 export async function saveDoseLog(log: DoseLogEntry[]): Promise<void> {
   try {
     await AsyncStorage.setItem(STORAGE_KEYS.DOSE_LOG, JSON.stringify(log));

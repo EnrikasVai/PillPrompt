@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Medication, AppSettings, UpcomingDose } from '../types';
-import { parseTimeToToday } from '../utils/formatters';
+import { parseTimeToToday, jsDayToAppDay } from '../utils/formatters';
 
 /**
  * Given the list of medications and app settings, compute the next upcoming dose.
@@ -13,13 +13,13 @@ export function useUpcomingDose(medications: Medication[], settings: AppSettings
     // Recalculate every 30 seconds
     const calc = () => {
       const now = new Date();
-      const today = now.getDay();
+      const appDay = jsDayToAppDay(now.getDay());
 
       let best: UpcomingDose | null = null;
 
       for (const med of medications) {
         if (!med.enabled) continue;
-        if (med.daysOfWeek.length > 0 && !med.daysOfWeek.includes(today)) continue;
+        if (med.daysOfWeek.length > 0 && !med.daysOfWeek.includes(appDay)) continue;
 
         const scheduled = parseTimeToToday(med.time);
         const graceEnd = new Date(scheduled.getTime() + settings.gracePeriodMinutes * 60_000);

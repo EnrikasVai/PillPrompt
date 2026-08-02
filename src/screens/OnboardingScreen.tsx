@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import dayjs from 'dayjs';
 import {
   View,
   Text,
@@ -13,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
 import { useApp } from '../context/AppContext';
+import { saveLastCheckDate } from '../services/storage';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../theme';
 import { PinDots } from '../components/PinDots';
 import { NumericKeypad } from '../components/NumericKeypad';
@@ -66,6 +68,8 @@ export function OnboardingScreen({ navigation }: Props) {
         pinCode: pinValue,
         gracePeriodMinutes: parseInt(gracePeriod, 10),
       });
+      // Set baseline for missed-dose backfill — don't log doses from before account creation
+      saveLastCheckDate(dayjs().format('YYYY-MM-DD'));
       navigation.replace('Home');
     }
   };

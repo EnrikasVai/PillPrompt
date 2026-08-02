@@ -1,5 +1,13 @@
 import dayjs from 'dayjs';
 
+/**
+ * Convert JS Date.getDay() (0=Sunday ... 6=Saturday)
+ * to the app's day-of-week index (0=Monday ... 6=Sunday).
+ */
+export function jsDayToAppDay(jsDay: number): number {
+  return (jsDay + 6) % 7;
+}
+
 /** Format a "HH:mm" string to 24-hour display like "08:00" */
 export function formatTime(time24: string): string {
   return time24;
