@@ -2,6 +2,9 @@
 
 PillPrompt is a medication reminder app for seniors and their caregivers. It runs entirely on the phone, stores all data locally, and needs no accounts or subscriptions.
 
+<img width="1920" height="1080" alt="pillprompt" src="https://github.com/user-attachments/assets/061caf4c-e450-4786-b2c4-137ecce6eac7" />
+
+
 ## What it does
 
 - Lets a caregiver add medications with a name, dosage, time, and the days of the week they should be taken.
